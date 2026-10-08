@@ -848,5 +848,3 @@ namespace OcsResponses
         }
     }
 }
-
-\r\n
