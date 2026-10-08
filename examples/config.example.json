@@ -1,0 +1,40 @@
+{
+  "api_key": "",
+  "base_url": "https://api.openai.com/v1",
+  "model": "gpt-4.1-mini",
+  "port": 8765,
+  "local_token": "",
+  "timeout_seconds": 45,
+  "max_output_tokens": 2048,
+  "reasoning_effort": "",
+  "use_structured_outputs": true,
+  "allow_insecure_http": false,
+  "max_concurrent_requests": 2,
+  "active_source": "OpenAI Official",
+  "sources": [
+    {
+      "name": "OpenAI Official",
+      "api_key": "",
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-4.1-mini",
+      "reasoning_effort": "",
+      "use_structured_outputs": true,
+      "allow_insecure_http": false,
+      "success_count": 0,
+      "failure_count": 0
+    },
+    {
+      "name": "Backup Proxy",
+      "api_key": "",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "model": "gpt-4.1-mini",
+      "reasoning_effort": "",
+      "use_structured_outputs": true,
+      "allow_insecure_http": true,
+      "success_count": 0,
+      "failure_count": 0
+    }
+  ]
+}
+
+\r\n

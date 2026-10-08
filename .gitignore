@@ -1,0 +1,29 @@
+# Local configuration and runtime output
+release/config.json
+release/service.log
+release/ocs-answerer-wrapper.json
+release/*.tmp
+release/*.bak
+
+# Build output
+release/OCSllm.exe
+release/OCSllm.exe.config
+release/*.pdb
+release/*.xml
+
+# Python cache and generated preview
+__pycache__/
+*.pyc
+tools/app-preview.png
+
+# IDE and OS files
+.vs/
+.vscode/
+*.user
+*.suo
+Thumbs.db
+Desktop.ini
+
+# Temporary editor and patch files
+*.tmp
+*.bak

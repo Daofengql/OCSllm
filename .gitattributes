@@ -1,0 +1,4 @@
+# Keep source and documentation text files in UTF-8.
+*.cs text working-tree-encoding=UTF-8
+*.md text working-tree-encoding=UTF-8
+*.json text working-tree-encoding=UTF-8
