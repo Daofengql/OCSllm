@@ -1,6 +1,7 @@
 {
+  "protocol": "responses",
   "api_key": "",
-  "base_url": "https://api.openai.com/v1",
+  "base_url": "https://api.openai.com",
   "model": "gpt-4.1-mini",
   "port": 8765,
   "local_token": "",
@@ -14,8 +15,9 @@
   "sources": [
     {
       "name": "OpenAI Official",
+      "protocol": "responses",
       "api_key": "",
-      "base_url": "https://api.openai.com/v1",
+      "base_url": "https://api.openai.com",
       "model": "gpt-4.1-mini",
       "reasoning_effort": "",
       "use_structured_outputs": true,
@@ -24,13 +26,26 @@
       "failure_count": 0
     },
     {
-      "name": "Backup Proxy",
+      "name": "OpenAI Chat Completions",
+      "protocol": "chat_completions",
       "api_key": "",
-      "base_url": "http://127.0.0.1:8080/v1",
+      "base_url": "https://api.openai.com",
       "model": "gpt-4.1-mini",
       "reasoning_effort": "",
       "use_structured_outputs": true,
-      "allow_insecure_http": true,
+      "allow_insecure_http": false,
+      "success_count": 0,
+      "failure_count": 0
+    },
+    {
+      "name": "Claude Messages",
+      "protocol": "claude_messages",
+      "api_key": "",
+      "base_url": "https://api.anthropic.com",
+      "model": "claude-3-5-haiku-latest",
+      "reasoning_effort": "",
+      "use_structured_outputs": false,
+      "allow_insecure_http": false,
       "success_count": 0,
       "failure_count": 0
     }

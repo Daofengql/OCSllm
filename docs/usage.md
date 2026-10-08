@@ -15,7 +15,13 @@ Source list actions:
 - Right-click “修改 / 重命名” to edit the source or its name in a dialog.
 - Right-click “删除源” to remove a source; at least one source is kept.
 
-Each source keeps its own success and failure counters.
+Each source keeps its own success and failure counters. Select one of the supported protocols when editing a source:
+
+- **OpenAI Responses** uses `POST /v1/responses` and Bearer authentication.
+- **OpenAI Chat Completions** uses `POST /v1/chat/completions` and Bearer authentication.
+- **Claude Messages** uses `POST /v1/messages`, `x-api-key`, and `anthropic-version: 2023-06-01`.
+
+The API address can be a provider root such as `https://api.example.com` or can already include `/v1`. OCSllm chooses the final path from the selected protocol, so you do not need to type `/v1`.
 
 ## Import into OCS
 
@@ -25,11 +31,11 @@ Start OCSllm, click “复制 OCS 配置”, and import the clipboard JSON into 
 POST http://127.0.0.1:8765/answer
 ```
 
-The bridge forwards each request to the active source through the OpenAI Responses API.
+The bridge forwards each request to the active source using the protocol selected for the active source and converts the model response into OCS's answer format.
 
 ## Network and retries
 
-The remote source must be compatible with the Responses API. HTTPS is the default and is recommended. For a trusted proxy without HTTPS, enable “允许远程 HTTP（无 HTTPS 代理）” for that source and use an `http://.../v1` base URL. Timeouts, connection failures, 429, and 5xx responses are retried up to three times before the request is reported as failed.
+The remote source must support the selected protocol. HTTPS is the default and is recommended. For a trusted proxy without HTTPS, enable “允许远程 HTTP（无 HTTPS 代理）” for that source and use an `http://...` base URL. Timeouts, connection failures, 429, and 5xx responses are retried up to three times before the request is reported as failed.
 
 ## Command-line switches
 

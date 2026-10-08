@@ -21,7 +21,7 @@ namespace OcsResponses
     internal static class AppInfo
     {
         public const string Name = "OCSllm";
-        public const string Version = "1.0.0";
+        public const string Version = "1.1.0";
     }
 
     internal static class Json
@@ -46,9 +46,34 @@ namespace OcsResponses
         }
     }
 
+    internal static class Protocols
+    {
+        public const string Responses = "responses";
+        public const string ChatCompletions = "chat_completions";
+        public const string ClaudeMessages = "claude_messages";
+
+        public static string Normalize(string value)
+        {
+            string normalized = (value ?? "").Trim().ToLowerInvariant().Replace("-", "_").Replace(" ", "_");
+            if (normalized == "" || normalized == "response" || normalized == "responses_api" || normalized == Responses) return Responses;
+            if (normalized == "chat" || normalized == "chat_completion" || normalized == "chat_completions" || normalized == "openai_chat") return ChatCompletions;
+            if (normalized == "claude" || normalized == "messages" || normalized == "claude_message" || normalized == "claude_messages" || normalized == "anthropic") return ClaudeMessages;
+            throw new InvalidDataException("protocol 必须是 responses、chat_completions 或 claude_messages。");
+        }
+
+        public static string Label(string value)
+        {
+            string normalized = Normalize(value);
+            if (normalized == ChatCompletions) return "OpenAI Chat Completions";
+            if (normalized == ClaudeMessages) return "Claude Messages";
+            return "OpenAI Responses";
+        }
+    }
+
     public sealed class SourceProfile
     {
         public string name { get; set; }
+        public string protocol { get; set; }
         public string api_key { get; set; }
         public string base_url { get; set; }
         public string model { get; set; }
@@ -57,12 +82,13 @@ namespace OcsResponses
         public bool allow_insecure_http { get; set; }
         public int success_count { get; set; }
         public int failure_count { get; set; }
-        public SourceProfile() { name = "新源"; api_key = ""; base_url = "https://api.openai.com/v1"; model = "gpt-4.1-mini"; reasoning_effort = ""; use_structured_outputs = true; allow_insecure_http = false; success_count = 0; failure_count = 0; }
-        public SourceProfile Clone() { return new SourceProfile { name = name, api_key = api_key, base_url = base_url, model = model, reasoning_effort = reasoning_effort, use_structured_outputs = use_structured_outputs, allow_insecure_http = allow_insecure_http, success_count = success_count, failure_count = failure_count }; }
+        public SourceProfile() { name = "新源"; protocol = Protocols.Responses; api_key = ""; base_url = "https://api.openai.com"; model = "gpt-4.1-mini"; reasoning_effort = ""; use_structured_outputs = true; allow_insecure_http = false; success_count = 0; failure_count = 0; }
+        public SourceProfile Clone() { return new SourceProfile { name = name, protocol = protocol, api_key = api_key, base_url = base_url, model = model, reasoning_effort = reasoning_effort, use_structured_outputs = use_structured_outputs, allow_insecure_http = allow_insecure_http, success_count = success_count, failure_count = failure_count }; }
     }
 
     public sealed class Settings
     {
+        public string protocol { get; set; }
         public string api_key { get; set; }
         public string base_url { get; set; }
         public string model { get; set; }
@@ -78,7 +104,7 @@ namespace OcsResponses
         public List<SourceProfile> sources { get; set; }
         public Settings()
         {
-            api_key = ""; base_url = "https://api.openai.com/v1"; model = "gpt-4.1-mini";
+            protocol = Protocols.Responses; api_key = ""; base_url = "https://api.openai.com"; model = "gpt-4.1-mini";
             port = 8765; local_token = ""; timeout_seconds = 45; max_output_tokens = 2048;
             reasoning_effort = ""; use_structured_outputs = true; allow_insecure_http = false; max_concurrent_requests = 2;
             active_source = "默认源"; sources = new List<SourceProfile>();
@@ -88,13 +114,14 @@ namespace OcsResponses
             if (sources == null) sources = new List<SourceProfile>();
             if (sources.Count == 0)
             {
-                sources.Add(new SourceProfile { name = String.IsNullOrWhiteSpace(active_source) ? "默认源" : active_source, api_key = api_key ?? "", base_url = base_url ?? "https://api.openai.com/v1", model = model ?? "gpt-4.1-mini", reasoning_effort = reasoning_effort ?? "", use_structured_outputs = use_structured_outputs, allow_insecure_http = allow_insecure_http });
+                sources.Add(new SourceProfile { name = String.IsNullOrWhiteSpace(active_source) ? "默认源" : active_source, protocol = protocol ?? Protocols.Responses, api_key = api_key ?? "", base_url = base_url ?? "https://api.openai.com", model = model ?? "gpt-4.1-mini", reasoning_effort = reasoning_effort ?? "", use_structured_outputs = use_structured_outputs, allow_insecure_http = allow_insecure_http });
             }
             for (int i = 0; i < sources.Count; i++)
             {
                 if (sources[i] == null) sources[i] = new SourceProfile();
                 if (String.IsNullOrWhiteSpace(sources[i].name)) sources[i].name = "源 " + (i + 1);
-                if (String.IsNullOrWhiteSpace(sources[i].base_url)) sources[i].base_url = "https://api.openai.com/v1";
+                sources[i].protocol = Protocols.Normalize(sources[i].protocol);
+                if (String.IsNullOrWhiteSpace(sources[i].base_url)) sources[i].base_url = "https://api.openai.com";
                 if (String.IsNullOrWhiteSpace(sources[i].model)) sources[i].model = "gpt-4.1-mini";
             }
             if (String.IsNullOrWhiteSpace(active_source) || sources.All(x => x.name != active_source)) active_source = sources[0].name;
@@ -104,14 +131,14 @@ namespace OcsResponses
         {
             EnsureSourceListOnly();
             var p = sources.FirstOrDefault(x => x.name == active_source) ?? sources[0];
-            active_source = p.name; api_key = p.api_key ?? ""; base_url = p.base_url; model = p.model;
+            active_source = p.name; protocol = Protocols.Normalize(p.protocol); api_key = p.api_key ?? ""; base_url = p.base_url; model = p.model;
             reasoning_effort = p.reasoning_effort ?? ""; use_structured_outputs = p.use_structured_outputs; allow_insecure_http = p.allow_insecure_http;
         }
         public void SyncActiveSource()
         {
             EnsureSourceListOnly();
             var p = sources.FirstOrDefault(x => x.name == active_source) ?? sources[0];
-            p.name = active_source; p.api_key = api_key ?? ""; p.base_url = base_url ?? ""; p.model = model ?? "";
+            p.name = active_source; p.protocol = Protocols.Normalize(protocol); p.api_key = api_key ?? ""; p.base_url = base_url ?? ""; p.model = model ?? "";
             p.reasoning_effort = reasoning_effort ?? ""; p.use_structured_outputs = use_structured_outputs; p.allow_insecure_http = allow_insecure_http;
         }
         private void EnsureSourceListOnly()
@@ -127,12 +154,14 @@ namespace OcsResponses
                 throw new InvalidDataException("base_url 必须是 HTTP(S) 地址，不能包含用户名、查询参数或片段。");
             if (uri.Scheme == "http" && !uri.IsLoopback && !allow_insecure_http)
                 throw new InvalidDataException("远程 API 地址使用 HTTP 时，需要在 config.json 设置 allow_insecure_http=true。");
-            if (!url.EndsWith("/responses", StringComparison.OrdinalIgnoreCase))
-                url += url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? "/responses" : "/v1/responses";
+            string suffix = Protocols.Normalize(protocol) == Protocols.ChatCompletions ? "/chat/completions" : Protocols.Normalize(protocol) == Protocols.ClaudeMessages ? "/messages" : "/responses";
+            if (!url.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                url += url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? suffix : "/v1" + suffix;
             return new Uri(url);
         }
         public void Validate(bool requireKey)
         {
+            Protocols.Normalize(protocol);
             Endpoint();
             if (String.IsNullOrWhiteSpace(model)) throw new InvalidDataException("请填写 model。");
             if (port < 1024 || port > 65535) throw new InvalidDataException("port 必须为 1024 到 65535。");
@@ -189,7 +218,7 @@ namespace OcsResponses
         private static string Pretty(Settings s)
         {
             var fields = new object[][] {
-                new object[]{"api_key", s.api_key}, new object[]{"base_url", s.base_url}, new object[]{"model", s.model},
+                new object[]{"protocol", s.protocol}, new object[]{"api_key", s.api_key}, new object[]{"base_url", s.base_url}, new object[]{"model", s.model},
                 new object[]{"port", s.port}, new object[]{"local_token", s.local_token},
                 new object[]{"timeout_seconds", s.timeout_seconds}, new object[]{"max_output_tokens", s.max_output_tokens},
                 new object[]{"reasoning_effort", s.reasoning_effort}, new object[]{"use_structured_outputs", s.use_structured_outputs},
@@ -229,7 +258,7 @@ namespace OcsResponses
                 string newName = (profile.name ?? "").Trim(); if (newName.Length == 0) throw new InvalidDataException("源名称不能为空。");
                 if (s.sources.Any(x => x != old && String.Equals(x.name, newName, StringComparison.OrdinalIgnoreCase))) throw new InvalidDataException("源名称已存在：" + newName);
                 bool active = s.active_source == originalName;
-                old.name = newName; old.api_key = profile.api_key ?? ""; old.base_url = profile.base_url ?? ""; old.model = profile.model ?? "";
+                old.name = newName; old.protocol = Protocols.Normalize(profile.protocol); old.api_key = profile.api_key ?? ""; old.base_url = profile.base_url ?? ""; old.model = profile.model ?? "";
                 old.reasoning_effort = profile.reasoning_effort ?? ""; old.use_structured_outputs = profile.use_structured_outputs; old.allow_insecure_http = profile.allow_insecure_http;
                 if (active) s.active_source = newName;
                 s.ApplyActiveSource(); Save(s); return Load();
@@ -324,22 +353,8 @@ namespace OcsResponses
         public static async Task<Dictionary<string, object>> Solve(Question q, Settings s)
         {
             s.Validate(true);
-            var input = new { title = q.Title, type = q.Type, options = q.Options.Select((text, index) => new { index, text }).ToArray() };
-            var payload = new Dictionary<string, object> {
-                {"model", s.model.Trim()}, {"instructions", Instructions}, {"store", false}, {"stream", false},
-                {"max_output_tokens", s.max_output_tokens},
-                {"input", new[] { new { role = "user", content = new[] { new { type = "input_text", text = Json.Write(input) } } } }}
-            };
-            if (!String.IsNullOrWhiteSpace(s.reasoning_effort)) payload["reasoning"] = new { effort = s.reasoning_effort.Trim() };
-            if (s.use_structured_outputs)
-                payload["text"] = new { format = new { type = "json_schema", name = "course_answer", strict = true,
-                    schema = new { type = "object", additionalProperties = false,
-                        required = new[] { "choice_indexes", "answers", "uncertain", "reason" },
-                        properties = new {
-                            choice_indexes = new { type = "array", items = new { type = "integer" } },
-                            answers = new { type = "array", items = new { type = "string" } },
-                            uncertain = new { type = "boolean" }, reason = new { type = "string" }
-                        } } } };
+            string protocol = Protocols.Normalize(s.protocol);
+            var payload = BuildPayload(q, s, protocol);
 
             const int maxAttempts = 3;
             string lastFailure = "";
@@ -351,7 +366,12 @@ namespace OcsResponses
                 using (var client = new HttpClient(transport) { Timeout = TimeSpan.FromSeconds(s.timeout_seconds) })
                 using (var request = new HttpRequestMessage(HttpMethod.Post, s.Endpoint()))
                 {
-                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", s.api_key.Trim());
+                    if (protocol == Protocols.ClaudeMessages)
+                    {
+                        request.Headers.Add("x-api-key", s.api_key.Trim());
+                        request.Headers.Add("anthropic-version", "2023-06-01");
+                    }
+                    else request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", s.api_key.Trim());
                     request.Content = new StringContent(Json.Write(payload), Encoding.UTF8, "application/json");
                     try
                     {
@@ -361,11 +381,10 @@ namespace OcsResponses
                             if (raw.Length > 1048576) throw new InvalidDataException("API 响应过大。");
                             if (!response.IsSuccessStatusCode)
                             {
-                                string detail = "";
-                                try { detail = Json.Str(Json.Obj(Json.Get(Json.Obj(Json.Read(raw)), "error")), "message"); } catch { }
+                                string detail = ErrorDetail(raw);
                                 if (detail.Length > 320) detail = detail.Substring(0, 320);
                                 detail = SafeMessage(detail, s);
-                                string httpError = "Responses API HTTP " + (int)response.StatusCode +
+                                string httpError = Protocols.Label(protocol) + " HTTP " + (int)response.StatusCode +
                                     (detail.Length == 0 ? "" : "：" + detail);
                                 if (!IsRetryableStatus((int)response.StatusCode)) throw new InvalidDataException(httpError);
                                 lastFailure = httpError;
@@ -373,38 +392,131 @@ namespace OcsResponses
                             else
                             {
                                 var doc = Json.Obj(Json.Read(raw));
-                                string status = Json.Str(doc, "status");
-                                if (!String.IsNullOrEmpty(status) && status != "completed")
-                                    throw new InvalidDataException("模型响应未完成（" + status + "）。可检查 max_output_tokens 或超时设置。");
-                                var text = new StringBuilder();
-                                foreach (var item in Json.List(Json.Get(doc, "output")))
-                                {
-                                    var message = Json.Obj(item);
-                                    if (Json.Str(message, "type") != "message") continue;
-                                    foreach (var block in Json.List(Json.Get(message, "content")))
-                                    {
-                                        var part = Json.Obj(block);
-                                        if (Json.Str(part, "type") == "refusal") throw new InvalidDataException("模型拒绝回答此题。");
-                                        if (Json.Str(part, "type") == "output_text") text.Append(Json.Str(part, "text"));
-                                    }
-                                }
-                                if (text.Length == 0) throw new InvalidDataException("Responses 响应中没有 output[].content[].output_text；请确认服务支持 /responses。");
-                                return ConvertAnswer(q, text.ToString());
+                                return ConvertAnswer(q, ExtractResponseText(doc, protocol));
                             }
                         }
                     }
                     catch (TaskCanceledException)
                     {
-                        lastFailure = "Responses API 请求超时（第 " + attempt + "/" + maxAttempts + " 次）。";
+                        lastFailure = Protocols.Label(protocol) + " 请求超时（第 " + attempt + "/" + maxAttempts + " 次）。";
                     }
                     catch (HttpRequestException)
                     {
-                        lastFailure = "无法连接 Responses API（第 " + attempt + "/" + maxAttempts + " 次）。";
+                        lastFailure = "无法连接 " + Protocols.Label(protocol) + "（第 " + attempt + "/" + maxAttempts + " 次）。";
                     }
                 }
                 if (attempt < maxAttempts) await Task.Delay(attempt * 1000).ConfigureAwait(false);
             }
-            throw new InvalidDataException("Responses API 连续 " + maxAttempts + " 次失败：" + lastFailure + "请检查网络、代理或使用更快的模型。");
+            throw new InvalidDataException(Protocols.Label(protocol) + " 连续 " + maxAttempts + " 次失败：" + lastFailure + "请检查网络、代理或使用更快的模型。");
+        }
+        private static Dictionary<string, object> BuildPayload(Question q, Settings s, string protocol)
+        {
+            var input = new Dictionary<string, object> {
+                {"title", q.Title}, {"type", q.Type},
+                {"options", q.Options.Select((text, index) => new { index, text }).ToArray()}
+            };
+            string question = Json.Write(input);
+            if (protocol == Protocols.ChatCompletions)
+            {
+                var payload = new Dictionary<string, object> {
+                    {"model", s.model.Trim()}, {"messages", new[] {
+                        new { role = "system", content = Instructions },
+                        new { role = "user", content = question }
+                    }}, {"max_tokens", s.max_output_tokens}, {"stream", false}
+                };
+                if (s.use_structured_outputs) payload["response_format"] = new { type = "json_object" };
+                return payload;
+            }
+            if (protocol == Protocols.ClaudeMessages)
+            {
+                return new Dictionary<string, object> {
+                    {"model", s.model.Trim()}, {"system", Instructions},
+                    {"messages", new[] { new { role = "user", content = question } }},
+                    {"max_tokens", s.max_output_tokens}, {"stream", false}
+                };
+            }
+            var responses = new Dictionary<string, object> {
+                {"model", s.model.Trim()}, {"instructions", Instructions}, {"store", false}, {"stream", false},
+                {"max_output_tokens", s.max_output_tokens},
+                {"input", new[] { new { role = "user", content = new[] { new { type = "input_text", text = question } } } }}
+            };
+            if (!String.IsNullOrWhiteSpace(s.reasoning_effort)) responses["reasoning"] = new { effort = s.reasoning_effort.Trim() };
+            if (s.use_structured_outputs)
+                responses["text"] = new { format = new { type = "json_schema", name = "course_answer", strict = true,
+                    schema = new { type = "object", additionalProperties = false,
+                        required = new[] { "choice_indexes", "answers", "uncertain", "reason" },
+                        properties = new {
+                            choice_indexes = new { type = "array", items = new { type = "integer" } },
+                            answers = new { type = "array", items = new { type = "string" } },
+                            uncertain = new { type = "boolean" }, reason = new { type = "string" }
+                        } } } };
+            return responses;
+        }
+        private static string ErrorDetail(string raw)
+        {
+            try
+            {
+                var root = Json.Obj(Json.Read(raw));
+                var error = Json.Get(root, "error");
+                if (error is Dictionary<string, object>)
+                {
+                    string nested = Json.Str(Json.Obj(error), "message");
+                    if (!String.IsNullOrWhiteSpace(nested)) return nested;
+                }
+                return Json.Str(root, "message");
+            }
+            catch { return ""; }
+        }
+        private static string ExtractResponseText(Dictionary<string, object> doc, string protocol)
+        {
+            var text = new StringBuilder();
+            if (protocol == Protocols.Responses)
+            {
+                string status = Json.Str(doc, "status");
+                if (!String.IsNullOrEmpty(status) && status != "completed")
+                    throw new InvalidDataException("模型响应未完成（" + status + "）。可检查 max_output_tokens 或超时设置。");
+                foreach (var item in Json.List(Json.Get(doc, "output")))
+                {
+                    var message = Json.Obj(item);
+                    if (Json.Str(message, "type") != "message") continue;
+                    foreach (var block in Json.List(Json.Get(message, "content")))
+                    {
+                        var part = Json.Obj(block);
+                        if (Json.Str(part, "type") == "refusal") throw new InvalidDataException("模型拒绝回答此题。");
+                        if (Json.Str(part, "type") == "output_text") text.Append(Json.Str(part, "text"));
+                    }
+                }
+            }
+            else if (protocol == Protocols.ChatCompletions)
+            {
+                var choices = Json.List(Json.Get(doc, "choices"));
+                if (choices.Count > 0)
+                {
+                    var choice = Json.Obj(choices[0]);
+                    var message = Json.Get(choice, "message") as Dictionary<string, object>;
+                    if (message != null) AppendContent(text, Json.Get(message, "content"), "text");
+                    if (text.Length == 0 && message != null) throw new InvalidDataException("Chat Completions 响应包含空消息。");
+                }
+            }
+            else
+            {
+                AppendContent(text, Json.Get(doc, "content"), "text");
+                if (text.Length == 0) throw new InvalidDataException("Claude Messages 响应没有可用的文本内容。");
+            }
+            if (text.Length == 0) throw new InvalidDataException(Protocols.Label(protocol) + " 响应中没有可用的文本内容。");
+            return text.ToString();
+        }
+        private static void AppendContent(StringBuilder target, object content, string textType)
+        {
+            if (content is string) { target.Append((string)content); return; }
+            foreach (var item in Json.List(content))
+            {
+                var part = item as Dictionary<string, object>;
+                if (part == null) continue;
+                string type = Json.Str(part, "type");
+                if (type == "refusal") throw new InvalidDataException("模型拒绝回答此题。");
+                if (type == textType || type == "output_text") target.Append(Json.Str(part, "text"));
+            }
         }
         private static bool IsRetryableStatus(int status)
         {
@@ -634,29 +746,33 @@ namespace OcsResponses
     internal sealed class SourceEditorForm : Form
     {
         private readonly TextBox nameBox = new TextBox(), baseUrlBox = new TextBox(), modelBox = new TextBox(), keyBox = new TextBox();
+        private readonly ComboBox protocolBox = new ComboBox();
         private readonly CheckBox httpBox = new CheckBox();
         public SourceProfile Result { get; private set; }
         public SourceEditorForm(SourceProfile profile, bool creating)
         {
             Text = creating ? "新增后端源" : "修改后端源"; Font = new Font("Microsoft YaHei UI", 9F);
-            ClientSize = new Size(590, 340); FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; MinimizeBox = false; StartPosition = FormStartPosition.CenterParent;
+            ClientSize = new Size(650, 405); FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; MinimizeBox = false; StartPosition = FormStartPosition.CenterParent;
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             Controls.Add(new Label { Text = creating ? "新增后端源" : "修改后端源", Font = new Font(Font.FontFamily, 16, FontStyle.Bold), AutoSize = true, Location = new Point(22, 18) });
-            AddField("源名称", nameBox, 66); AddField("API 地址", baseUrlBox, 111); AddField("模型名称", modelBox, 156); AddField("API Key", keyBox, 201); keyBox.UseSystemPasswordChar = true;
-            var reveal = new CheckBox { Text = "显示 Key", AutoSize = true, Location = new Point(492, 234) }; reveal.CheckedChanged += (sender, e) => keyBox.UseSystemPasswordChar = !reveal.Checked; Controls.Add(reveal);
-            httpBox.Text = "允许远程 HTTP（无 HTTPS 代理）"; httpBox.AutoSize = true; httpBox.Location = new Point(125, 238); Controls.Add(httpBox);
-            var save = new Button { Text = "保存", Location = new Point(330, 280), Size = new Size(100, 36), DialogResult = DialogResult.OK };
-            var cancel = new Button { Text = "取消", Location = new Point(450, 280), Size = new Size(100, 36), DialogResult = DialogResult.Cancel };
+            protocolBox.DropDownStyle = ComboBoxStyle.DropDownList; protocolBox.Items.Add("OpenAI Responses"); protocolBox.Items.Add("OpenAI Chat Completions"); protocolBox.Items.Add("Claude Messages");
+            AddField("源名称", nameBox, 66); AddField("协议", protocolBox, 111); AddField("API 地址", baseUrlBox, 156); AddField("模型名称", modelBox, 201); AddField("API Key", keyBox, 246); keyBox.UseSystemPasswordChar = true;
+            var reveal = new CheckBox { Text = "显示 Key", AutoSize = true, Location = new Point(552, 279) }; reveal.CheckedChanged += (sender, e) => keyBox.UseSystemPasswordChar = !reveal.Checked; Controls.Add(reveal);
+            httpBox.Text = "允许远程 HTTP（无 HTTPS 代理）"; httpBox.AutoSize = true; httpBox.Location = new Point(125, 283); Controls.Add(httpBox);
+            var note = new Label { Text = "API 地址可填写根地址或带 /v1 的地址，程序会按协议补全路径。", AutoSize = true, ForeColor = Color.DimGray, Location = new Point(125, 315) }; Controls.Add(note);
+            var save = new Button { Text = "保存", Location = new Point(390, 350), Size = new Size(100, 36), DialogResult = DialogResult.OK };
+            var cancel = new Button { Text = "取消", Location = new Point(510, 350), Size = new Size(100, 36), DialogResult = DialogResult.Cancel };
             save.Click += (sender, e) => { try { Result = ReadProfile(profile); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "源配置错误", MessageBoxButtons.OK, MessageBoxIcon.Warning); DialogResult = DialogResult.None; } };
             Controls.Add(save); Controls.Add(cancel); AcceptButton = save; CancelButton = cancel;
-            nameBox.Text = profile.name ?? ""; baseUrlBox.Text = profile.base_url ?? ""; modelBox.Text = profile.model ?? ""; keyBox.Text = profile.api_key ?? ""; httpBox.Checked = profile.allow_insecure_http;
+            nameBox.Text = profile.name ?? ""; protocolBox.SelectedIndex = Protocols.Normalize(profile.protocol) == Protocols.ChatCompletions ? 1 : Protocols.Normalize(profile.protocol) == Protocols.ClaudeMessages ? 2 : 0; baseUrlBox.Text = profile.base_url ?? ""; modelBox.Text = profile.model ?? ""; keyBox.Text = profile.api_key ?? ""; httpBox.Checked = profile.allow_insecure_http;
         }
-        private void AddField(string label, TextBox field, int y) { Controls.Add(new Label { Text = label, AutoSize = true, Location = new Point(24, y + 6) }); field.SetBounds(125, y, 425, 28); Controls.Add(field); }
+        private void AddField(string label, Control field, int y) { Controls.Add(new Label { Text = label, AutoSize = true, Location = new Point(24, y + 6) }); field.SetBounds(125, y, 490, 28); Controls.Add(field); }
         private SourceProfile ReadProfile(SourceProfile old)
         {
             string name = nameBox.Text.Trim(), address = baseUrlBox.Text.Trim(), model = modelBox.Text.Trim(), apiKey = keyBox.Text.Trim();
             if (name.Length == 0) throw new InvalidDataException("源名称不能为空。"); if (address.Length == 0) throw new InvalidDataException("API 地址不能为空。"); if (model.Length == 0) throw new InvalidDataException("模型名称不能为空。"); if (apiKey.Contains("\r") || apiKey.Contains("\n")) throw new InvalidDataException("API Key 不能包含换行。");
-            return new SourceProfile { name = name, base_url = address, model = model, api_key = apiKey, reasoning_effort = old.reasoning_effort ?? "", use_structured_outputs = old.use_structured_outputs, allow_insecure_http = httpBox.Checked, success_count = old.success_count, failure_count = old.failure_count };
+            string protocol = protocolBox.SelectedIndex == 1 ? Protocols.ChatCompletions : protocolBox.SelectedIndex == 2 ? Protocols.ClaudeMessages : Protocols.Responses;
+            return new SourceProfile { name = name, protocol = protocol, base_url = address, model = model, api_key = apiKey, reasoning_effort = old.reasoning_effort ?? "", use_structured_outputs = old.use_structured_outputs, allow_insecure_http = httpBox.Checked, success_count = old.success_count, failure_count = old.failure_count };
         }
     }
 
@@ -675,7 +791,7 @@ namespace OcsResponses
             Controls.Add(new Label { Text = "OCSllm", Font = new Font(Font.FontFamily, 19, FontStyle.Bold), AutoSize = true, Location = new Point(24, 18) });
             Controls.Add(new Label { Text = "后端源列表 · 双击激活目标后端 · 右键新增、修改或删除", AutoSize = true, Location = new Point(26, 58), ForeColor = Color.DimGray });
             sourceList.SetBounds(24, 88, 742, 260); sourceList.View = View.Details; sourceList.FullRowSelect = true; sourceList.GridLines = true; sourceList.HideSelection = false; sourceList.MultiSelect = false;
-            sourceList.Columns.Add("状态", 70); sourceList.Columns.Add("源名称", 170); sourceList.Columns.Add("API 地址", 300); sourceList.Columns.Add("模型", 140); sourceList.Columns.Add("成功", 55); sourceList.Columns.Add("失败", 55); Controls.Add(sourceList);
+            sourceList.Columns.Add("状态", 65); sourceList.Columns.Add("源名称", 110); sourceList.Columns.Add("协议", 125); sourceList.Columns.Add("API 地址", 200); sourceList.Columns.Add("模型", 115); sourceList.Columns.Add("成功", 60); sourceList.Columns.Add("失败", 60); Controls.Add(sourceList);
             sourceList.DoubleClick += (sender, e) => ActivateSelected(); sourceList.SelectedIndexChanged += (sender, e) => { if (!loadingSource) hint.Text = "已选中源，双击即可激活；右键可修改或重命名。"; };
             var sourceMenu = new ContextMenuStrip(); sourceMenu.Items.Add("新增源", null, (sender, e) => AddSource()); sourceMenu.Items.Add("修改 / 重命名", null, (sender, e) => EditSelected()); sourceMenu.Items.Add("删除源", null, (sender, e) => RemoveSource()); sourceList.ContextMenuStrip = sourceMenu;
             status.SetBounds(24, 362, 742, 34); status.ForeColor = Color.FromArgb(30, 85, 140); Controls.Add(status);
@@ -690,7 +806,7 @@ namespace OcsResponses
             loadingSource = true; sourceList.Items.Clear();
             foreach (var item in s.sources)
             {
-                var row = new ListViewItem(new[] { item.name == s.active_source ? "● 当前" : "", item.name, item.base_url, item.model, item.success_count.ToString(), item.failure_count.ToString() }); row.Tag = item.name; sourceList.Items.Add(row);
+                var row = new ListViewItem(new[] { item.name == s.active_source ? "● 当前" : "", item.name, Protocols.Label(item.protocol), item.base_url, item.model, item.success_count.ToString(), item.failure_count.ToString() }); row.Tag = item.name; sourceList.Items.Add(row);
             }
             var active = sourceList.Items.Cast<ListViewItem>().FirstOrDefault(x => Convert.ToString(x.Tag) == s.active_source); if (active != null) active.Selected = true; loadingSource = false;
         }
@@ -705,7 +821,7 @@ namespace OcsResponses
         {
             try
             {
-                var draft = new SourceProfile { name = "新源", api_key = "", base_url = "https://api.openai.com/v1", model = "gpt-4.1-mini", allow_insecure_http = false };
+                var draft = new SourceProfile { name = "新源", protocol = Protocols.Responses, api_key = "", base_url = "https://api.openai.com", model = "gpt-4.1-mini", allow_insecure_http = false };
                 using (var editor = new SourceEditorForm(draft, true)) if (editor.ShowDialog(this) == DialogResult.OK) { var s = config.CreateSource(editor.Result); PopulateSources(s); hint.Text = "已新增并激活后端：" + editor.Result.name; UpdateStatus(); }
             }
             catch (Exception ex) { ShowError(ex); }

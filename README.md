@@ -3,13 +3,13 @@
 [![Build](https://github.com/Daofengql/OCSllm/actions/workflows/build.yml/badge.svg)](https://github.com/Daofengql/OCSllm/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A Windows tray application that bridges OCS with the OpenAI Responses API. OCS talks to a local endpoint, while the active backend source sends questions to a configured remote model. The project supports multiple sources, HTTPS, and trusted HTTP proxies.
+A Windows tray application that bridges OCS with compatible remote model APIs. OCS talks to a local endpoint, while the active backend source sends questions to a configured remote model. The project supports multiple sources, HTTPS, and trusted HTTP proxies.
 
 ## Features
 
 - Runs in the Windows notification area and exposes `http://127.0.0.1:8765/answer`.
-- Uses the OpenAI Responses API; it does not use a local question bank or local model.
-- Supports multiple backend sources. Each source has its own name, API key, base URL, model, and success/failure counters.
+- Supports OpenAI Responses, OpenAI-compatible Chat Completions, and Claude Messages APIs; it does not use a local question bank or local model.
+- Supports multiple backend sources. Each source has its own protocol, name, API key, base URL, model, and success/failure counters.
 - Double-click a source to activate it. Right-click to add, edit, rename, or remove a source.
 - Retries timeouts, network failures, HTTP 429, and 5xx responses up to three times.
 - Uses HTTPS by default; trusted `http://` proxy endpoints can be enabled per source.
@@ -75,7 +75,7 @@ The executable also supports these optional switches:
 
 ## HTTP proxies
 
-A source can use an OpenAI-compatible HTTPS endpoint such as `https://api.openai.com/v1` or a trusted HTTP proxy such as `http://127.0.0.1:8080/v1`. Enable “允许远程 HTTP（无 HTTPS 代理）” for an HTTP source. HTTP sends the API key and question content in plaintext, so use it only with a trusted local or private proxy.
+A source can use a root HTTPS endpoint such as `https://api.openai.com` or a trusted HTTP proxy such as `http://127.0.0.1:8080`. Choose the protocol in the source editor; OCSllm appends `/v1/responses`, `/v1/chat/completions`, or `/v1/messages` automatically. An address that already ends with the protocol endpoint is also accepted. Enable “允许远程 HTTP（无 HTTPS 代理）” for an HTTP source. HTTP sends the API key and question content in plaintext, so use it only with a trusted local or private proxy.
 
 ## Runtime files
 
